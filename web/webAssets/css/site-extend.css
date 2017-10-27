@@ -1,0 +1,37 @@
+body{
+    background-color: #f1f4f5;
+}
+
+.page-copyright-inverse {
+    color: #000;
+}
+
+.page-copyright-inverse .social .icon {
+    color: #000;
+}
+
+.page-copyright-inverse .social .icon:hover {
+    color: #000;
+}
+
+.animsition{
+    height: 100%;
+}
+
+.panel-body {
+    padding: 30px 30px;
+}
+
+.list-group-item:first-child {
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+}
+
+.media, .media-body {
+    overflow: initial;
+    zoom: 1;
+}
+
+.site-menubar-unfold .site-footer {
+    margin-left: 0px;
+}
