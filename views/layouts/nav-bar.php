@@ -1,6 +1,11 @@
 <?php
 use \yii\helpers\Url;
+use app\modules\ModUsuarios\models\EntUsuarios;
+
 $usuario = Yii::$app->user->identity;
+if(!$usuario){
+  $usuario = new EntUsuarios();
+}
 ?>
 <nav class="site-navbar navbar navbar-default navbar-fixed-top navbar-mega" role="navigation">
     <div class="navbar-header">
