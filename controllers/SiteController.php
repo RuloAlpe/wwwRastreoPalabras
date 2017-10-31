@@ -10,6 +10,14 @@ use yii\filters\VerbFilter;
 use app\models\LoginForm;
 use app\models\ContactForm;
 use app\components\AccessControlExtend;
+use app\modules\ModUsuarios\models\Twitter;
+use app\models\EntPalabrasClaves;
+use app\models\EntRastreoTextos;
+use app\models\RelPalabraPalabras;
+use app\models\RelPalabraPersonas;
+use app\models\RelPalabraSigResultado;
+use Google\Cloud\Language\LanguageClient;
+use app\models\RelPalabraRefrescarUrl;
 
 class SiteController extends Controller
 {
@@ -78,12 +86,116 @@ class SiteController extends Controller
      */
     public function actionIndex()
     {
-        
         // $usuario = Yii::$app->user->identity;
         // $auth = \Yii::$app->authManager;
         // $authorRole = $auth->getRole('test');
         // $auth->assign($authorRole, $usuario->getId());
+        
+        //Declara api de google
+        require __DIR__.'\..\vendor\autoload.php';
+        $language = new LanguageClient([
+            'projectId' => 'modified-wonder-176917',
+            'keyFilePath' => '../web/Mi primer proyecto-449267dd9cee.json'
+        ]);
+
+        //Id del usuario
+        $userId = Yii::$app->user->identity->id_usuario;
+
+        $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#CruzAzul'])->andWhere(['id_usuario'=>$userId])->one();
+        
+        if(!$palabraEnBD){
+            echo "No se ha buscado esa palabra";exit();
+            //Asignar valores a modelo palabra clave que busca el usuario
+            $palabraClave = new EntPalabrasClaves();
+            $palabraClave->txt_palabra_clave = "#CruzAzul";
+            $palabraClave->id_usuario = $userId;
+            $palabraClave->num_cantidad_elementos = 5;
+
+            $jsonDecode = buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
+            guardarElementosEnBD($jsonDecode, $language, $palabraClave);
+        }else{
+            echo "Ya se busco esa palabra";exit();
+        }
+            
         return $this->render('index');
+    }
+
+    public function buascarTwitter($palabra, $numElementos, $fecha = null){
+        $arr = [];
+        $arr[0] = $palabra;
+        $twitter = new Twitter();
+        $json = $twitter->getTweets($arr, $numElementos, $fecha);
+        //echo $json;exit();
+        return json_decode($json);
+    }
+
+    public function guardarElementosEnBD($jsonDecode, $language, $palabraClave){
+        $totalScore = 0;
+        $totalMagnitud = 0;
+        //For para conocer el contenodo del json completo
+        $num_items = count($jsonDecode->statuses);
+        for($i=0; $i<$num_items; $i++){
+            $rastreoTexto = new EntRastreoTextos();
+            $texto = $jsonDecode->statuses[$i];
+
+            //Analisis de texto traido pot json se hace uno por uno de los elementos
+            $annotation = $language->analyzeSentiment($texto->text);
+            $sentimiento = $annotation->sentiment();
+
+            //Guardar en la BD el texto, sentimiento y magnitud
+            $rastreoTexto->id_elemento_texto = $texto->id_str;
+            $rastreoTexto->id_palabra_clave = $palabraClave->id_palabra_clave;
+            $rastreoTexto->txt_rastero_texto = $texto->text;
+            $rastreoTexto->num_sentimiento_texto = $sentimiento['score'];
+            $rastreoTexto->num_magnitud_texto = $sentimiento['magnitude'];
+            $rastreoTexto->save();
+
+            $totalScore = $totalScore + $rastreoTexto->num_sentimiento_texto;
+            $totalMagnitud = $totalMagnitud + $rastreoTexto->num_magnitud_texto;
+
+            //Conocer si tiene otras palabras clave relacionas en el texto
+            $numPalabrasRelacionadas = count($texto->entities->hashtags);
+            if($numPalabrasRelacionadas > 0){
+                for($j = 0; $j < $numPalabrasRelacionadas; $j++) {
+                    $palabraRelacionada = new RelPalabraPalabras();
+                    $palabra = $texto->entities->hashtags[$j];
+                    
+                    $palabraRelacionada->id_palabra_clave = $palabraClave->id_palabra_clave;
+                    $palabraRelacionada->txt_rel_palabra = $palabra->text;
+                    $palabraRelacionada->save();
+                }
+            }
+
+            //Conocer si tiene otras usuarios de twitter relacionas en el texto            
+            $numUserRelacionados = count($texto->entities->user_mentions);
+            if($numUserRelacionados > 0){
+                for($k = 0; $k < $numUserRelacionados; $k++){
+                    $userRelacionado = new RelPalabraPersonas();
+                    $userRel = $texto->entities->user_mentions[$k];
+
+                    $userRelacionado->id_palabra_clave = $palabraClave->id_palabra_clave;
+                    $userRelacionado->txt_persona = $userRel->screen_name;
+                    $userRelacionado->save();
+                }
+            }
+        }
+
+        //Calcular promedio score, magnitud y guardar palabra clave
+        $palabraClave->num_sentimiento_general = $totalScore / $palabraClave->num_cantidad_elementos;
+        $palabraClave->num_magnitud_general = $totalMagnitud / $palabraClave->num_cantidad_elementos;
+        $palabraClave->save();
+
+        //Guardar siguiente busqueda
+        $siguienteBusqueda = new RelPalabraSigResultado();
+        $siguienteBusqueda->id_palabra_clave = $palabraClave->id_palabra_clave;
+        $siguienteBusqueda->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
+        $siguienteBusqueda->save();
+
+        //Guardar url refresh
+        $urlRefresh = new RelPalabraRefrescarUrl();
+        $urlRefresh->id_palabra_clave = $palabraClave->id_palabra_clave;
+        $urlRefresh->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
+        $urlRefresh->save();
     }
 
     /**
