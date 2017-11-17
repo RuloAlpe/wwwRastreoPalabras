@@ -39,9 +39,9 @@ class Twitter{
             }
         }else{
             if($fecha != null){
-                $getfield = '?q='. urlencode($hashtag[0]) . '&count=' . $num . '&until=' . $fecha;
+                $getfield = '?q='. $hashtag[0]/*urlencode($hashtag[0])*/ . '&count=' . $num . '&until=' . $fecha;
             }else{
-                $getfield = '?q='. urlencode($hashtag[0]) . '&count=' . $num . '&result_type=recent';                
+                $getfield = '?q='. $hashtag[0]/*urlencode($hashtag[0])*/ . '&count=' . $num . '&result_type=recent';                
             }
         }
         $requestMethod = 'GET';
@@ -51,6 +51,7 @@ class Twitter{
             ->buildOauth($url, $requestMethod)
             ->performRequest();
 
+        //echo $json;exit();            
         return $json;
     }
 
@@ -65,7 +66,8 @@ class Twitter{
             ->buildOauth($url, $requestMethod)
             ->performRequest();
             
-        echo $json;exit();//return $json;
+        //echo $json;exit();
+        return $json;
     }
 
     function getTweetsUser($user, $num){

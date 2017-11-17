@@ -102,15 +102,16 @@ class SiteController extends Controller
             //Id del usuario
             $userId = Yii::$app->user->identity->id_usuario;
 
-            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#FelizMiercoles'])->andWhere(['id_usuario'=>$userId])->one();
+            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#elbuenfin2017'])->andWhere(['id_usuario'=>$userId])->one();
             
             if(!$palabraEnBD){
                 //echo "No se ha buscado esa palabra";exit();
                 //Asignar valores a modelo palabra clave que busca el usuario
                 $palabraClave = new EntPalabrasClaves();
-                $palabraClave->txt_palabra_clave = "#FelizMiercoles";
+                $palabraClave->txt_palabra_clave = "#elbuenfin2017";
                 $palabraClave->id_usuario = $userId;
                 $palabraClave->num_cantidad_elementos = 5;
+                $palabraClave->save();
 
                 $jsonDecode = $this->buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraClave);
@@ -168,7 +169,7 @@ class SiteController extends Controller
             //Guardar en la BD el texto, sentimiento y magnitud
             $rastreoTexto->id_elemento_texto = $texto->id_str;
             $rastreoTexto->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $rastreoTexto->txt_rastero_texto = mb_convert_encoding($texto->text, "UTF-8");
+            $rastreoTexto->txt_rastero_texto = \urldecode($texto->text);
             $rastreoTexto->num_sentimiento_texto = $sentimiento['score'];
             $rastreoTexto->num_magnitud_texto = $sentimiento['magnitude'];
             $rastreoTexto->save();
@@ -213,20 +214,20 @@ class SiteController extends Controller
         //Guardar siguiente busqueda
         if($relSig && $relRef){
             $relSig->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
-            $relSig->save(false);
+            $relSig->save();
 
             $relRef->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
-            $relRef->save(false);
+            $relRef->save();
         }else{
             $siguienteBusqueda = new RelPalabraSigResultado();
             $siguienteBusqueda->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $siguienteBusqueda->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
+            $siguienteBusqueda->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
             $siguienteBusqueda->save();
 
             //Guardar url refresh
             $urlRefresh = new RelPalabraRefrescarUrl();
             $urlRefresh->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $urlRefresh->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
+            $urlRefresh->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
             $urlRefresh->save();
         }
     }
