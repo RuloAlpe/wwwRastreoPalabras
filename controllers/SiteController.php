@@ -98,24 +98,28 @@ class SiteController extends Controller
             'keyFilePath' => '../web/Mi primer proyecto-449267dd9cee.json'
         ]);
 
-        //Id del usuario
-        $userId = Yii::$app->user->identity->id_usuario;
+        //if( isset($_POST['hashtag']) && isset($_POST['numero']) ){
+            //Id del usuario
+            $userId = Yii::$app->user->identity->id_usuario;
 
-        $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#CruzAzul'])->andWhere(['id_usuario'=>$userId])->one();
-        
-        if(!$palabraEnBD){
-            echo "No se ha buscado esa palabra";exit();
-            //Asignar valores a modelo palabra clave que busca el usuario
-            $palabraClave = new EntPalabrasClaves();
-            $palabraClave->txt_palabra_clave = "#CruzAzul";
-            $palabraClave->id_usuario = $userId;
-            $palabraClave->num_cantidad_elementos = 5;
+            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#FelizMiercoles'])->andWhere(['id_usuario'=>$userId])->one();
+            
+            if(!$palabraEnBD){
+                //echo "No se ha buscado esa palabra";exit();
+                //Asignar valores a modelo palabra clave que busca el usuario
+                $palabraClave = new EntPalabrasClaves();
+                $palabraClave->txt_palabra_clave = "#FelizMiercoles";
+                $palabraClave->id_usuario = $userId;
+                $palabraClave->num_cantidad_elementos = 5;
 
-            $jsonDecode = buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
-            guardarElementosEnBD($jsonDecode, $language, $palabraClave);
-        }else{
-            echo "Ya se busco esa palabra";exit();
-        }
+                $jsonDecode = $this->buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
+                $this->guardarElementosEnBD($jsonDecode, $language, $palabraClave);
+            }else{
+                //var_dump($palabraEnBD);exit();
+                $jsonDecode = $this->actualizarTwitter($palabraEnBD);
+                $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD);
+            }
+        //}
             
         return $this->render('index');
     }
@@ -125,27 +129,46 @@ class SiteController extends Controller
         $arr[0] = $palabra;
         $twitter = new Twitter();
         $json = $twitter->getTweets($arr, $numElementos, $fecha);
-        //echo $json;exit();
+
+        return json_decode($json);
+    }
+
+    public function actualizarTwitter($palabraClave){
+        //$parametros = RelPalabraRefrescarUrl::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
+        $parametros = RelPalabraSigResultado::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
+
+        $twitter = new Twitter();
+        //$json = $twitter->getActualizarTweets($parametros->txt_refrescar_url);
+        $json = $twitter->getActualizarTweets($parametros->txt_parametros_sig_resultado);
+        
         return json_decode($json);
     }
 
     public function guardarElementosEnBD($jsonDecode, $language, $palabraClave){
-        $totalScore = 0;
-        $totalMagnitud = 0;
+        $relSig = RelPalabraSigResultado::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
+        $relRef = RelPalabraRefrescarUrl::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
+        if($relSig && $relRef){
+            $totalScore = $palabraClave->num_sentimiento_general;
+            $totalMagnitud = $palabraClave->num_magnitud_general;
+        }else{
+            $totalScore = 0;
+            $totalMagnitud = 0;    
+        }
+        
         //For para conocer el contenodo del json completo
         $num_items = count($jsonDecode->statuses);
         for($i=0; $i<$num_items; $i++){
             $rastreoTexto = new EntRastreoTextos();
             $texto = $jsonDecode->statuses[$i];
 
-            //Analisis de texto traido pot json se hace uno por uno de los elementos
+            //Analisis de texto traido por json se hace uno por uno de los elementos
             $annotation = $language->analyzeSentiment($texto->text);
             $sentimiento = $annotation->sentiment();
 
             //Guardar en la BD el texto, sentimiento y magnitud
             $rastreoTexto->id_elemento_texto = $texto->id_str;
             $rastreoTexto->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $rastreoTexto->txt_rastero_texto = $texto->text;
+            $rastreoTexto->txt_rastero_texto = mb_convert_encoding($texto->text, "UTF-8");
             $rastreoTexto->num_sentimiento_texto = $sentimiento['score'];
             $rastreoTexto->num_magnitud_texto = $sentimiento['magnitude'];
             $rastreoTexto->save();
@@ -181,21 +204,31 @@ class SiteController extends Controller
         }
 
         //Calcular promedio score, magnitud y guardar palabra clave
-        $palabraClave->num_sentimiento_general = $totalScore / $palabraClave->num_cantidad_elementos;
-        $palabraClave->num_magnitud_general = $totalMagnitud / $palabraClave->num_cantidad_elementos;
+        $countElementos = EntRastreoTextos::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->count();
+
+        $palabraClave->num_sentimiento_general = $totalScore / $countElementos;
+        $palabraClave->num_magnitud_general = $totalMagnitud / $countElementos;
         $palabraClave->save();
 
         //Guardar siguiente busqueda
-        $siguienteBusqueda = new RelPalabraSigResultado();
-        $siguienteBusqueda->id_palabra_clave = $palabraClave->id_palabra_clave;
-        $siguienteBusqueda->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
-        $siguienteBusqueda->save();
+        if($relSig && $relRef){
+            $relSig->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
+            $relSig->save(false);
 
-        //Guardar url refresh
-        $urlRefresh = new RelPalabraRefrescarUrl();
-        $urlRefresh->id_palabra_clave = $palabraClave->id_palabra_clave;
-        $urlRefresh->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
-        $urlRefresh->save();
+            $relRef->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
+            $relRef->save(false);
+        }else{
+            $siguienteBusqueda = new RelPalabraSigResultado();
+            $siguienteBusqueda->id_palabra_clave = $palabraClave->id_palabra_clave;
+            $siguienteBusqueda->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
+            $siguienteBusqueda->save();
+
+            //Guardar url refresh
+            $urlRefresh = new RelPalabraRefrescarUrl();
+            $urlRefresh->id_palabra_clave = $palabraClave->id_palabra_clave;
+            $urlRefresh->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
+            $urlRefresh->save();
+        }
     }
 
     /**

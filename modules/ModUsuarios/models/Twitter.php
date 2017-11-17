@@ -54,6 +54,20 @@ class Twitter{
         return $json;
     }
 
+    function getActualizarTweets($parametros){
+        $url = 'https://api.twitter.com/1.1/search/tweets.json';
+        $getfield = $parametros;
+        //echo $getfield;exit;
+        
+        $requestMethod = 'GET';
+        $twitter = new TwitterAPIExchange($this->settings);
+        $json =  $twitter->setGetfield($getfield)
+            ->buildOauth($url, $requestMethod)
+            ->performRequest();
+            
+        echo $json;exit();//return $json;
+    }
+
     function getTweetsUser($user, $num){
         //BUSCAR POR USUARIO
         $url = 'https://api.twitter.com/1.1/statuses/user_timeline.json';
