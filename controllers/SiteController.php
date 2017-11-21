@@ -98,7 +98,7 @@ class SiteController extends Controller
             'keyFilePath' => '../web/Mi primer proyecto-449267dd9cee.json'
         ]);
 
-        //if( isset($_POST['hashtag']) && isset($_POST['numero']) ){
+        if( isset($_POST['hashtag']) && isset($_POST['numero']) ){
             //Id del usuario
             $userId = Yii::$app->user->identity->id_usuario;
 
@@ -116,11 +116,13 @@ class SiteController extends Controller
                 $jsonDecode = $this->buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraClave);
             }else{
-                //var_dump($palabraEnBD);exit();
                 $jsonDecode = $this->actualizarTwitter($palabraEnBD);
-                $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD);
+                $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD, $tipo=0);
+
+                $jsonDecode = $this->actualizarTwitterNuevos($palabraEnBD);
+                $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD, $tipo=1);                
             }
-        //}
+        }
             
         return $this->render('index');
     }
@@ -145,10 +147,27 @@ class SiteController extends Controller
         return json_decode($json);
     }
 
-    public function guardarElementosEnBD($jsonDecode, $language, $palabraClave){
-        $relSig = RelPalabraSigResultado::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
-        $relRef = RelPalabraRefrescarUrl::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
-        if($relSig && $relRef){
+    public function actualizarTwitterNuevos($palabraClave){
+        //$parametros = RelPalabraRefrescarUrl::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
+        $parametros = RelPalabraRefrescarUrl::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();
+
+        $twitter = new Twitter();
+        //$json = $twitter->getActualizarTweets($parametros->txt_refrescar_url);
+        $json = $twitter->getActualizarTweets($parametros->txt_refrescar_url);
+        return json_decode($json);
+    }
+
+    public function guardarElementosEnBD($jsonDecode, $language, $palabraClave, $tipo){
+        $relSig = null;
+        $relRef = null;
+        if($tipo == 0){
+            $relSig = RelPalabraSigResultado::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();            
+        }
+        if($tipo == 1){
+            $relRef = RelPalabraRefrescarUrl::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->one();            
+        }
+
+        if($relSig || $relRef){
             $totalScore = $palabraClave->num_sentimiento_general;
             $totalMagnitud = $palabraClave->num_magnitud_general;
         }else{
@@ -167,12 +186,16 @@ class SiteController extends Controller
             $sentimiento = $annotation->sentiment();
 
             //Guardar en la BD el texto, sentimiento y magnitud
-            $rastreoTexto->id_elemento_texto = $texto->id_str;
-            $rastreoTexto->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $rastreoTexto->txt_rastero_texto = \urldecode($texto->text);
-            $rastreoTexto->num_sentimiento_texto = $sentimiento['score'];
-            $rastreoTexto->num_magnitud_texto = $sentimiento['magnitude'];
-            $rastreoTexto->save();
+            $idTwitter = EntRastreoTextos::find()->where(['id_elemento_texto'=>$texto->id_str])->one();
+
+            if(!$idTwitter){
+                $rastreoTexto->id_elemento_texto = $texto->id_str;
+                $rastreoTexto->id_palabra_clave = $palabraClave->id_palabra_clave;
+                $rastreoTexto->txt_rastero_texto = \urldecode($texto->text);
+                $rastreoTexto->num_sentimiento_texto = $sentimiento['score'];
+                $rastreoTexto->num_magnitud_texto = $sentimiento['magnitude'];
+                $rastreoTexto->save();
+            }
 
             $totalScore = $totalScore + $rastreoTexto->num_sentimiento_texto;
             $totalMagnitud = $totalMagnitud + $rastreoTexto->num_magnitud_texto;
@@ -212,12 +235,16 @@ class SiteController extends Controller
         $palabraClave->save();
 
         //Guardar siguiente busqueda
-        if($relSig && $relRef){
-            $relSig->txt_parametros_sig_resultado = $jsonDecode->search_metadata->next_results;
-            $relSig->save();
+        if($relSig || $relRef){
+            if($tipo == 0){
+                $relSig->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
+                $relSig->save();
+            }
 
-            $relRef->txt_refrescar_url = $jsonDecode->search_metadata->refresh_url;
-            $relRef->save();
+            if($tipo == 1){
+                $relRef->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
+                $relRef->save();
+            }
         }else{
             $siguienteBusqueda = new RelPalabraSigResultado();
             $siguienteBusqueda->id_palabra_clave = $palabraClave->id_palabra_clave;

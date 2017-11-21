@@ -32,6 +32,7 @@ class AppAsset extends AssetBundle
         // Site css
         'webAssets/css/site.min.css',
         'webAssets/css/site-extend.css',
+        'webAssets/css/c3.css',
         // Fonts
         'webAssets/fonts/web-icons/web-icons.min.css',
         'webAssets/fonts/brand-icons/brand-icons.css',
@@ -55,6 +56,9 @@ class AppAsset extends AssetBundle
         'webAssets/plugins/intro-js/intro.js',
         'webAssets/plugins/screenfull/screenfull.js',
         'webAssets/plugins/slidepanel/jquery-slidePanel.js',
+        
+        'http://d3js.org/d3.v3.min.js',
+        'webAssets/js/c3.min.js',
 
         // site
         'webAssets/js/core.js',
@@ -69,6 +73,7 @@ class AppAsset extends AssetBundle
         'webAssets/js/slidepanel.js',
         'webAssets/js/switchery.js',
         'webAssets/js/geeks.js',
+
 
 
     ];

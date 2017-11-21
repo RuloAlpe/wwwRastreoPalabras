@@ -167,8 +167,9 @@ class TwitterAPIExchange
                 $params[$key] = $value;
             }
         }
-
+        //echo urldecode(http_build_query($params, '', '&')) . "<br>" . http_build_query($params, '', '&');
         $this->getfield = '?' . http_build_query($params, '', '&');
+        //$this->getfield = '?' . urldecode(http_build_query($params, '', '&'));
 
         return $this;
     }
@@ -239,6 +240,7 @@ class TwitterAPIExchange
                 if (isset($split[1]))
                 {
                     $oauth[$split[0]] = urldecode($split[1]);
+                    //$oauth[$split[0]] = ($split[1]);
                 }
             }
         }
