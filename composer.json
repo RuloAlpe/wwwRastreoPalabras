@@ -19,7 +19,8 @@
         "yiisoft/yii2-bootstrap": "~2.0.0",
         "yiisoft/yii2-swiftmailer": "~2.0.0",
         "kartik-v/yii2-widget-select2": "@dev",
-        "google/cloud": "^0.40.0"
+        "google/cloud": "^0.40.0",
+        "google/cloud-language": "^0.11.2"
     },
     "require-dev": {
         "yiisoft/yii2-debug": "~2.0.0",

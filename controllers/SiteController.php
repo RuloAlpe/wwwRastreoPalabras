@@ -18,6 +18,7 @@ use app\models\RelPalabraPersonas;
 use app\models\RelPalabraSigResultado;
 use Google\Cloud\Language\LanguageClient;
 use app\models\RelPalabraRefrescarUrl;
+use app\models\EntEntidades;
 
 class SiteController extends Controller
 {
@@ -98,29 +99,32 @@ class SiteController extends Controller
             'keyFilePath' => '../web/Mi primer proyecto-449267dd9cee.json'
         ]);
 
-        if( isset($_POST['hashtag']) && isset($_POST['numero']) ){
+        if( isset($_POST['hashtag']) && isset($_POST['numero']) ){          
             //Id del usuario
             $userId = Yii::$app->user->identity->id_usuario;
 
-            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#elbuenfin2017'])->andWhere(['id_usuario'=>$userId])->one();
+            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#BettyWhite'])->andWhere(['id_usuario'=>$userId])->one();
             
             if(!$palabraEnBD){
                 //echo "No se ha buscado esa palabra";exit();
                 //Asignar valores a modelo palabra clave que busca el usuario
                 $palabraClave = new EntPalabrasClaves();
-                $palabraClave->txt_palabra_clave = "#elbuenfin2017";
+                $palabraClave->txt_palabra_clave = "#BettyWhite";
                 $palabraClave->id_usuario = $userId;
                 $palabraClave->num_cantidad_elementos = 5;
                 $palabraClave->save();
 
                 $jsonDecode = $this->buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
-                $this->guardarElementosEnBD($jsonDecode, $language, $palabraClave);
+                $this->guardarElementosEnBD($jsonDecode, $language, $palabraClave, $tipo=0);
+                $this->sentimientoEntidades($palabraClave, $language);
             }else{
                 $jsonDecode = $this->actualizarTwitter($palabraEnBD);
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD, $tipo=0);
 
                 $jsonDecode = $this->actualizarTwitterNuevos($palabraEnBD);
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD, $tipo=1);                
+                
+                $this->sentimientoEntidades($palabraEnBD, $language);
             }
         }
             
@@ -191,7 +195,7 @@ class SiteController extends Controller
             if(!$idTwitter){
                 $rastreoTexto->id_elemento_texto = $texto->id_str;
                 $rastreoTexto->id_palabra_clave = $palabraClave->id_palabra_clave;
-                $rastreoTexto->txt_rastero_texto = \urldecode($texto->text);
+                $rastreoTexto->txt_rastreo_texto = \urldecode($texto->text);
                 $rastreoTexto->num_sentimiento_texto = $sentimiento['score'];
                 $rastreoTexto->num_magnitud_texto = $sentimiento['magnitude'];
                 $rastreoTexto->save();
@@ -256,6 +260,44 @@ class SiteController extends Controller
             $urlRefresh->id_palabra_clave = $palabraClave->id_palabra_clave;
             $urlRefresh->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
             $urlRefresh->save();
+        }
+    }
+
+    public function sentimientoEntidades($palabraClave, $language){
+        $rastreo = EntRastreoTextos::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->all();
+
+        if($rastreo){
+            foreach($rastreo as $ras){
+                $entidad = new EntEntidades();
+
+                // Call the analyzeEntitySentiment function
+                $response = $language->analyzeEntitySentiment($ras->txt_rastreo_texto);
+                $info = $response->info();
+                $entities = $info['entities'];
+
+                $entity_types = array('UNKNOWN', 'PERSON', 'LOCATION', 'ORGANIZATION', 'EVENT',
+                    'WORK_OF_ART', 'CONSUMER_GOOD', 'OTHER');
+
+                // Print out information about each entity
+                foreach($entities as $entity){
+                    $entidad->id_palabra_clave = $palabraClave->id_palabra_clave;
+                    $entidad->id_rastreo_texto = $ras->id_rastreo_texto;
+                    $entidad->txt_nombre = $entity['name'];
+                    $entidad->txt_tipo = $entity['type'];
+                    $entidad->num_sentimiento = $entity['sentiment']['score'];
+                    $entidad->num_magnitud = $entity['sentiment']['magnitude'];
+                    $entidad->save();
+
+                    /*printf('Entity Name: %s' . PHP_EOL, $entity['name']);
+                    printf('Entity Type: %s' . PHP_EOL, $entity['type']);
+                    printf('Entity Salience: %s' . PHP_EOL, $entity['salience']);
+                    printf('Entity Magnitude: %s' . PHP_EOL, $entity['sentiment']['magnitude']);
+                    printf('Entity Score: %s' . PHP_EOL, $entity['sentiment']['score']);
+                    printf(PHP_EOL);*/
+                }
+            }
+        }else{
+            echo "Palabra no encontrada";
         }
     }
 

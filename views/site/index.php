@@ -38,6 +38,8 @@ $this->title = 'Buscar por hashtag';
 </div>
 
 <script>
+    var basePath = "<?= Yii::$app->urlManager->createAbsoluteUrl(['']) ?>";
+
     $(document).ready(function(){
       var chart = c3.generate({
         bindto: '#chart',
