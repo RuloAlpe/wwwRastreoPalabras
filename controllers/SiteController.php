@@ -99,36 +99,48 @@ class SiteController extends Controller
             'keyFilePath' => '../web/Mi primer proyecto-449267dd9cee.json'
         ]);
 
-        if( isset($_POST['hashtag']) && isset($_POST['numero']) ){          
+        if( isset($_POST['hashtag']) && isset($_POST['numero']) ){
+            set_time_limit(500);
             //Id del usuario
             $userId = Yii::$app->user->identity->id_usuario;
 
-            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#BettyWhite'])->andWhere(['id_usuario'=>$userId])->one();
+            $palabraEnBD = EntPalabrasClaves::find()->where(['txt_palabra_clave'=>'#NationalPieDay'])->andWhere(['id_usuario'=>$userId])->one();
             
             if(!$palabraEnBD){
                 //echo "No se ha buscado esa palabra";exit();
                 //Asignar valores a modelo palabra clave que busca el usuario
                 $palabraClave = new EntPalabrasClaves();
-                $palabraClave->txt_palabra_clave = "#BettyWhite";
+                $palabraClave->txt_palabra_clave = "#NationalPieDay";
                 $palabraClave->id_usuario = $userId;
-                $palabraClave->num_cantidad_elementos = 5;
+                $palabraClave->num_cantidad_elementos = 2;
                 $palabraClave->save();
 
                 $jsonDecode = $this->buascarTwitter($palabraClave->txt_palabra_clave, $palabraClave->num_cantidad_elementos, null);
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraClave, $tipo=0);
                 $this->sentimientoEntidades($palabraClave, $language);
+
+                return $this->renderAjax('mostrar_datos',[
+                    'palabraEnBD' => $palabraClave
+                ]);                
             }else{
                 $jsonDecode = $this->actualizarTwitter($palabraEnBD);
+                //if(property_exists($jsonDecode->search_metadata, "next_results")){
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD, $tipo=0);
 
                 $jsonDecode = $this->actualizarTwitterNuevos($palabraEnBD);
                 $this->guardarElementosEnBD($jsonDecode, $language, $palabraEnBD, $tipo=1);                
                 
                 $this->sentimientoEntidades($palabraEnBD, $language);
+               
+                return $this->renderAjax('mostrar_datos',[
+                    'palabraEnBD' => $palabraEnBD
+                ]);                
             }
         }
             
-        return $this->render('index');
+        return $this->render('index',[
+            'palabraEnBD' => false
+        ]);
     }
 
     public function buascarTwitter($palabra, $numElementos, $fecha = null){
@@ -241,35 +253,41 @@ class SiteController extends Controller
         //Guardar siguiente busqueda
         if($relSig || $relRef){
             if($tipo == 0){
-                $relSig->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
-                $relSig->save();
+                //if(property_exists($jsonDecode->search_metadata, "next_results")){
+                    $relSig->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
+                    $relSig->save();
+                //}
             }
 
             if($tipo == 1){
-                $relRef->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
-                $relRef->save();
+                //if(property_exists($jsonDecode->search_metadata, "refresh_url")){
+                    $relRef->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
+                    $relRef->save();
+                //}
             }
         }else{
             $siguienteBusqueda = new RelPalabraSigResultado();
             $siguienteBusqueda->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $siguienteBusqueda->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
+            //if(property_exists($jsonDecode->search_metadata, "next_results")){
+                $siguienteBusqueda->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
+            //}
             $siguienteBusqueda->save();
 
             //Guardar url refresh
             $urlRefresh = new RelPalabraRefrescarUrl();
             $urlRefresh->id_palabra_clave = $palabraClave->id_palabra_clave;
-            $urlRefresh->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
+            //if(property_exists($jsonDecode->search_metadata, "refresh_url")){
+                $urlRefresh->txt_refrescar_url = \urldecode($jsonDecode->search_metadata->refresh_url);
+            //}
             $urlRefresh->save();
         }
     }
 
     public function sentimientoEntidades($palabraClave, $language){
-        $rastreo = EntRastreoTextos::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->all();
+        $rastreo = EntRastreoTextos::find()->where(['id_palabra_clave'=>$palabraClave->id_palabra_clave])->andWhere(['b_usado'=>0])->all();
 
         if($rastreo){
             foreach($rastreo as $ras){
-                $entidad = new EntEntidades();
-
                 // Call the analyzeEntitySentiment function
                 $response = $language->analyzeEntitySentiment($ras->txt_rastreo_texto);
                 $info = $response->info();
@@ -280,6 +298,7 @@ class SiteController extends Controller
 
                 // Print out information about each entity
                 foreach($entities as $entity){
+                    $entidad = new EntEntidades();
                     $entidad->id_palabra_clave = $palabraClave->id_palabra_clave;
                     $entidad->id_rastreo_texto = $ras->id_rastreo_texto;
                     $entidad->txt_nombre = $entity['name'];
@@ -295,6 +314,8 @@ class SiteController extends Controller
                     printf('Entity Score: %s' . PHP_EOL, $entity['sentiment']['score']);
                     printf(PHP_EOL);*/
                 }
+                $ras->b_usado = 1;
+                $ras->save();
             }
         }else{
             echo "Palabra no encontrada";

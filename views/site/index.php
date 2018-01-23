@@ -1,5 +1,7 @@
 <?php
 
+use app\models\EntEntidades;
+
 /* @var $this yii\web\View */
 
 $this->title = 'Buscar por hashtag';
@@ -31,8 +33,8 @@ $this->title = 'Buscar por hashtag';
     </form>
   </div>
 
-  <div id="js-datos" class="col-md-9">
-    <div id="chart"></div>
+  <div id="js-datos" class="container">
+    
   </div>
 
 </div>
@@ -41,7 +43,7 @@ $this->title = 'Buscar por hashtag';
     var basePath = "<?= Yii::$app->urlManager->createAbsoluteUrl(['']) ?>";
 
     $(document).ready(function(){
-      var chart = c3.generate({
+/*      var chart = c3.generate({
         bindto: '#chart',
         data: {
           columns: [
@@ -55,7 +57,7 @@ $this->title = 'Buscar por hashtag';
           columns.push(data2);
 
           return columns;*/
-        }
+/*        }
       });
       /*$(':checkbox').on('change',function(){
       var th = $(this), name = th.prop('name'); 
