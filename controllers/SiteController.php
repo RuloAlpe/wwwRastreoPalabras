@@ -254,8 +254,8 @@ class SiteController extends Controller
         if($relSig || $relRef){
             if($tipo == 0){
                 //if(property_exists($jsonDecode->search_metadata, "next_results")){
-                    $relSig->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
-                    $relSig->save();
+                    //$relSig->txt_parametros_sig_resultado = \urldecode($jsonDecode->search_metadata->next_results);
+                    //$relSig->save();
                 //}
             }
 
